@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Zirateh Batch Delivery Audit Report</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 15mm 20mm 15mm;
+            background-color: #fafbfd;
+            @bottom-right { content: "Page " counter(page) " of " counter(pages); font-family: sans-serif; font-size: 8pt; color: #8a90a0; }
+        }
+        body { font-family: sans-serif; color: #1e2229; background-color: #fafbfd; margin: 0; line-height: 1.5; font-size: 10pt; }
+        .header-banner { margin: -20mm -15mm 25px -15mm; padding: 25px 15mm; background: linear-gradient(135deg, #111622 0%, #1a2333 100%); color: #ffffff; border-bottom: 3px solid #1d9e75; }
+        .header-banner h1 { font-size: 20pt; margin: 0 0 6px 0; }
+        .wordmark { float: right; font-size: 11pt; font-weight: 700; color: #1d9e75; text-transform: uppercase; }
+        .meta-summary { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 15px; margin-bottom: 25px; }
+        .meta-summary table { width: 100%; border-collapse: collapse; }
+        .meta-summary td { padding: 4px 0; font-size: 9.5pt; }
+        .meta-summary td.label { color: #718096; width: 15%; }
+        .meta-summary td.value { color: #1a202c; font-weight: 600; }
+        h2 { font-size: 13pt; color: #111622; margin: 25px 0 12px 0; border-left: 4px solid #1d9e75; padding-left: 8px; }
+        table.audit-matrix { width: 100%; border-collapse: collapse; background-color: #ffffff; border: 1px solid #e2e8f0; margin-bottom: 25px; }
+        table.audit-matrix th { background-color: #1a2333; color: #ffffff; font-size: 9pt; padding: 10px 12px; text-align: left; text-transform: uppercase; }
+        table.audit-matrix td { padding: 10px 12px; font-size: 9pt; vertical-align: top; border-bottom: 1px solid #edf2f7; border-right: 1px solid #edf2f7; }
+        .status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 8pt; font-weight: 600; text-transform: uppercase; }
+        .status-pass { background-color: #e1f5ee; color: #0f6e56; }
+        .status-fail { background-color: #fed7d7; color: #9b2c2c; }
+        .action-container { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin-bottom: 20px; page-break-inside: avoid; }
+        .todo-item { position: relative; padding-left: 20px; margin-bottom: 8px; font-size: 9.5pt; list-style-type: none;}
+    </style>
+</head>
+<body>
+    <div class="header-banner">
+        <div class="wordmark">Zirateh</div>
+        <h1>Batch Delivery Audit Report</h1>
+        <p>Quality Control & Content Strategy Compliance Review</p>
+    </div>
+
+    <div class="meta-summary">
+        <table>
+            <tr>
+                <td class="label">Date:</td><td class="value">{{ date }}</td>
+                <td class="label">Project/Video:</td><td class="value">{{ filename }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2>📋 Quality Control Evaluation Matrix</h2>
+    <table class="audit-matrix">
+        <thead>
+            <tr>
+                <th style="width: 20%;">Section</th>
+                <th style="width: 25%;">Item Checked</th>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 40%;">Engine Findings & Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in matrix %}
+            <tr>
+                <td style="font-weight:600;">{{ row.section }}</td>
+                <td>{{ row.subsection }}</td>
+                <td>
+                    <span class="status-badge {% if row.status == 'Pass' %}status-pass{% else %}status-fail{% endif %}">
+                        {{ row.status }}
+                    </span>
+                </td>
+                <td style="color:#4a5568;">{{ row.detail }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>🛠️ Required Fixes Log</h2>
+    <div class="action-container">
+        <ul>
+            {% for row in matrix %}
+                {% if row.status == 'Fail' %}
+                    <li class="todo-item">❌ <strong>[{{ row.section }} - {{ row.subsection }}]:</strong> {{ row.detail }}</li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>

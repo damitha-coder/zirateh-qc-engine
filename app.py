@@ -4,7 +4,6 @@ from google.genai import types
 import json
 import os
 import time
-from weasyprint import HTML
 
 # 1. PERMANENT QC CHECKLIST MATRIX
 STANDARD_QC_CHECKLIST = """
@@ -22,9 +21,9 @@ st.sidebar.title("🔑 Developer Configuration")
 api_key = st.sidebar.text_input("Enter Gemini API Key (AIzaSy...)", type="password")
 
 st.title("🎬 Zirateh AI Video QC Engine")
-st.write("Upload your video asset and project brief to run an automated compliance audit using a standard Gemini API key.")
+st.write("Upload your video asset and project brief to run an automated compliance audit.")
 
-# Safeguard: App waits cleanly for the API Key without throwing background initialization errors
+# Safeguard: Prevents background initialization crashes before the user types their key
 if not api_key.strip():
     st.info("Please enter your Gemini API Key in the left sidebar to unlock the application.", icon="🔑")
 else:
@@ -32,7 +31,7 @@ else:
     os.environ["GEMINI_API_KEY"] = api_key.strip()
     
     try:
-        # Standard consumer/developer client initialization (no project or location needed)
+        # Standard consumer/developer client initialization
         client = genai.Client()
         
         # Create two columns for clean layout
@@ -126,13 +125,20 @@ else:
                             if brief_part:
                                 contents.append(brief_part)
 
-                            # Standard consumer model generation call string
+                            # Standard consumer API model endpoint string
                             response = client.models.generate_content(
                                 model="gemini-1.5-flash",
                                 contents=contents
                             )
 
-                            json_text = response.text.strip().replace("```json", "").replace("```", "")
+                            # Extract and clear any structural formatting wrappers safely
+                            json_text = response.text.strip()
+                            if json_text.startswith("```"):
+                                json_text = json_text.split("\n", 1)[1]
+                            if json_text.endswith("```"):
+                                json_text = json_text.rsplit("\n", 1)[0]
+                            json_text = json_text.strip().replace("json", "")
+
                             audit_results = json.loads(json_text)
 
                             st.balloons()
@@ -146,21 +152,7 @@ else:
                             st.write(audit_results["summary"])
                             st.table(audit_results["checklist_results"])
 
-                            if os.path.exists("template.html"):
-                                with open("template.html", "r") as f:
-                                    html_template = f.read()
-
-                                rows_html = ""
-                                for item in audit_results["checklist_results"]:
-                                    badge_class = "pass-badge" if item["result"] == "PASS" else "fail-badge"
-                                    rows_html += f"""
-                                    <tr>
-                                        <td><strong>{item['parameter']}</strong></td>
-                                        <td><span class="badge {badge_class}">{item['result']}</span></td>
-                                        <td>{item['notes']}</td>
-                                    </tr>
-                                    """
-
-                                html_content = html_template.replace("{{STATUS}}", audit_results["status"])\
-                                                             .replace("{{SUMMARY}}", audit_results["summary"])\
-                                                             .replace("
+                        except Exception as e:
+                            st.error(f"An optimization error occurred: {str(e)}")
+    except Exception as initialization_error:
+        st.error(f"Failed to initialize standard client: {str(initialization_error)}")

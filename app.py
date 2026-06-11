@@ -18,25 +18,33 @@ STANDARD_QC_CHECKLIST = """
 
 st.set_page_config(page_title="Zirateh QC Engine", layout="wide")
 
-# Sidebar setup
-st.sidebar.title("🔐 Configuration")
-api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
+# Sidebar setup for corporate configuration
+st.sidebar.title("🔐 Corporate Configuration")
+api_key = st.sidebar.text_input("Enter Corporate API Key (AQ...)", type="password")
+project_id = st.sidebar.text_input("GCP Project ID", value="386763638351")
+location = st.sidebar.text_input("GCP Vertex Region", value="us-central1")
 
 st.title("🎬 Zirateh AI Video QC Engine")
-st.write("Upload your video asset and project brief to run an automated quality compliance audit.")
+st.write("Upload your video asset and project brief to run an automated corporate compliance audit.")
 
 if not api_key:
-    st.info("Please enter your Gemini API Key in the left sidebar to unlock the application.", icon="🔑")
+    st.info("Please enter your Vertex API Key in the left sidebar to unlock the application.", icon="🔑")
 else:
-    # Initialize the client natively for your API key format
-    client = genai.Client(api_key=api_key)
+    # Set the environment variable required for the new corporate SDK routing backend
+    os.environ["GEMINI_API_KEY"] = api_key
+    
+    # Initialize the modern corporate client routing to Vertex infrastructure natively
+    client = genai.Client(
+        vertex=True,
+        project=project_id,
+        location=location
+    )
     
     # Create two columns for clean layout
     col1, col2 = st.columns([1, 1])
     
     with col1:
         st.subheader("📋 1. Project Brief Input")
-        
         brief_type = st.radio("Choose brief format:", ["Upload Master File (Image/PDF)", "Type/Paste Text"])
         
         brief_part = None
@@ -70,7 +78,6 @@ else:
         st.subheader("⚙️ 3. Audit Controls")
         st.markdown("**🔒 Active QC Checklist Matrix:** *Standard corporate matrix pre-loaded successfully.*")
         
-        # FIXED: Changed capital St.expander to lowercase st.expander
         with st.expander("View Active Standard Parameters"):
             st.text(STANDARD_QC_CHECKLIST)
 
@@ -82,21 +89,23 @@ else:
             elif brief_type == "Type/Paste Text" and not brief_text_content.strip():
                 st.error("Please enter text details for your project brief.")
             else:
-                with st.spinner("Processing video and documents with Gemini AI... This can take 1-2 minutes."):
+                with st.spinner("Processing video and documents with Corporate Vertex AI... This can take 1-2 minutes."):
                     try:
+                        # Save uploaded file to local disk temporarily
                         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_video.name)[1]) as tfile:
                             tfile.write(uploaded_video.read())
                             video_path = tfile.name
 
-                        st.text("Uploading video track to Google AI Studio...")
+                        st.text("Uploading video track to corporate Vertex buckets...")
                         uploaded_file_ref = client.files.upload(file=video_path)
                         
+                        # Wait out processing queue safely
                         while uploaded_file_ref.state.name == "PROCESSING":
                             time.sleep(5)
                             uploaded_file_ref = client.files.get(name=uploaded_file_ref.name)
 
                         if uploaded_file_ref.state.name == "FAILED":
-                            raise Exception("Video processing failed on Google servers.")
+                            raise Exception("Video processing failed on corporate servers.")
 
                         st.text("Analyzing video track against targeted rules...")
                         
@@ -120,68 +129,4 @@ else:
                                 {{"parameter": "Technical QC", "result": "PASS/FAIL", "notes": "Specific detail..."}},
                                 {{"parameter": "Structure", "result": "PASS/FAIL", "notes": "Specific detail..."}},
                                 {{"parameter": "Copy & Text", "result": "PASS/FAIL", "notes": "Specific detail..."}},
-                                {{"parameter": "Compliance", "result": "PASS/FAIL", "notes": "Specific detail..."}},
-                                {{"parameter": "Pacing", "result": "PASS/FAIL", "notes": "Specific detail..."}}
-                            ]
-                        }}
-                        Return ONLY valid JSON text. Do not wrap in markdown code blocks.
-                        """
-
-                        contents = [uploaded_file_ref, prompt]
-                        if brief_part:
-                            contents.append(brief_part)
-
-                        # FIXED: Normalized structure syntax for stable execution
-                        response = client.models.generate_content(
-                            model="gemini-1.5-flash",
-                            contents=contents
-                        )
-                        
-                        client.files.delete(name=uploaded_file_ref.name)
-                        os.unlink(video_path)
-
-                        json_text = response.text.strip().replace("```json", "").replace("```", "")
-                        audit_results = json.loads(json_text)
-
-                        st.balloons()
-                        st.subheader("📊 Audit Assessment Summary")
-                        
-                        if audit_results["status"] == "PASSED":
-                            st.success(f"STATUS: {audit_results['status']}")
-                        else:
-                            st.error(f"STATUS: {audit_results['status']}")
-
-                        st.write(audit_results["summary"])
-                        st.table(audit_results["checklist_results"])
-
-                        if os.path.exists("template.html"):
-                            with open("template.html", "r") as f:
-                                html_template = f.read()
-
-                            rows_html = ""
-                            for item in audit_results["checklist_results"]:
-                                badge_class = "pass-badge" if item["result"] == "PASS" else "fail-badge"
-                                rows_html += f"""
-                                <tr>
-                                    <td><strong>{item['parameter']}</strong></td>
-                                    <td><span class="badge {badge_class}">{item['result']}</span></td>
-                                    <td>{item['notes']}</td>
-                                </tr>
-                                """
-
-                            html_content = html_template.replace("{{STATUS}}", audit_results["status"])\
-                                                         .replace("{{SUMMARY}}", audit_results["summary"])\
-                                                         .replace("{{ROWS}}", rows_html)
-
-                            pdf_bytes = HTML(string=html_content).write_pdf()
-                            
-                            st.download_button(
-                                label="📥 Download Certified PDF QC Report",
-                                data=pdf_bytes,
-                                file_name="Zirateh_QC_Report.pdf",
-                                mime="application/pdf",
-                                use_container_width=True
-                            )
-
-                    except Exception as e:
-                        st.error(f"An optimization error occurred: {str(e)}")
+                                {{"parameter": "Compliance", "result": "PASS/FAIL", "notes": "

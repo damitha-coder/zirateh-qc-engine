@@ -1,5 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import json
 import os
 import time
@@ -27,9 +28,8 @@ st.write("Upload your video asset and project brief to run an automated quality 
 if not api_key:
     st.info("Please enter your Gemini API Key in the left sidebar to unlock the application.", icon="🔑")
 else:
-    # Key-flexible configuration fix
-    os.environ["GEMINI_API_KEY"] = api_key
-    genai.configure(api_key=api_key)
+    # Initialize the modern client which explicitly accepts AQ. keys
+    client = genai.Client(api_key=api_key)
     
     # Create two columns for clean layout
     col1, col2 = st.columns([1, 1])
@@ -39,18 +39,18 @@ else:
         
         brief_type = st.radio("Choose brief format:", ["Upload Master File (Image/PDF)", "Type/Paste Text"])
         
-        brief_data = None
+        brief_part = None
         brief_text_content = ""
         target_section = ""
         
         if brief_type == "Upload Master File (Image/PDF)":
             uploaded_brief = st.file_uploader("Upload your master brief document or table image", type=["png", "jpg", "jpeg", "pdf"])
             if uploaded_brief:
-                bytes_data = uploaded_brief.getvalue()
-                brief_data = {
-                    "mime_type": uploaded_brief.type,
-                    "data": bytes_data
-                }
+                # Wrap bytes for the modern SDK part system
+                brief_part = types.Part.from_bytes(
+                    data=uploaded_brief.getvalue(),
+                    mime_type=uploaded_brief.type,
+                )
                 st.success("📁 Master brief file attached.")
             
             target_section = st.text_input(
@@ -77,25 +77,27 @@ else:
         if st.button("🚀 Run AI Compliance Audit", use_container_width=True):
             if not uploaded_video:
                 st.error("Please upload a video file before running the audit.")
-            elif brief_type == "Upload Master File (Image/PDF)" and not brief_data:
+            elif brief_type == "Upload Master File (Image/PDF)" and not brief_part:
                 st.error("Please upload your master brief file.")
             elif brief_type == "Type/Paste Text" and not brief_text_content.strip():
                 st.error("Please enter text details for your project brief.")
             else:
                 with st.spinner("Processing video and documents with Gemini AI... This can take 1-2 minutes."):
                     try:
+                        # Save uploaded file to local disk temporarily
                         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_video.name)[1]) as tfile:
                             tfile.write(uploaded_video.read())
                             video_path = tfile.name
 
                         st.text("Uploading video track to Google AI Studio...")
-                        video_file = genai.upload_file(path=video_path)
+                        uploaded_file_ref = client.files.upload(file=video_path)
                         
-                        while video_file.state.name == "PROCESSING":
+                        # Wait out processing queue safely
+                        while uploaded_file_ref.state.name == "PROCESSING":
                             time.sleep(5)
-                            video_file = genai.get_file(video_file.name)
+                            uploaded_file_ref = client.files.get(name=uploaded_file_ref.name)
 
-                        if video_file.state.name == "FAILED":
+                        if uploaded_file_ref.state.name == "FAILED":
                             raise Exception("Video processing failed on Google servers.")
 
                         st.text("Analyzing video track against targeted rules...")
@@ -127,14 +129,18 @@ else:
                         Return ONLY valid JSON text. Do not wrap in markdown code blocks.
                         """
 
-                        model_inputs = [video_file, prompt]
-                        if brief_data:
-                            model_inputs.append(brief_data)
+                        # Compile contents for modern SDK
+                        contents = [uploaded_file_ref, prompt]
+                        if brief_part:
+                            contents.append(brief_part)
 
-                        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
-                        response = model.generate_content(model_inputs)
+                        response = client.models.generate_content(
+                            model="gemini-1.5-flash",
+                            contents=contents
+                        )
                         
-                        genai.delete_file(video_file.name)
+                        # Cleanup storage file loops
+                        client.files.delete(name=uploaded_file_ref.name)
                         os.unlink(video_path)
 
                         json_text = response.text.strip().replace("```json", "").replace("```", "")

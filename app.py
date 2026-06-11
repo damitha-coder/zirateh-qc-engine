@@ -28,7 +28,7 @@ st.write("Upload your video asset and project brief to run an automated quality 
 if not api_key:
     st.info("Please enter your Gemini API Key in the left sidebar to unlock the application.", icon="🔑")
 else:
-    # Initialize the modern client which explicitly accepts AQ. keys
+    # Initialize the client natively for your API key format
     client = genai.Client(api_key=api_key)
     
     # Create two columns for clean layout
@@ -46,7 +46,6 @@ else:
         if brief_type == "Upload Master File (Image/PDF)":
             uploaded_brief = st.file_uploader("Upload your master brief document or table image", type=["png", "jpg", "jpeg", "pdf"])
             if uploaded_brief:
-                # Wrap bytes for the modern SDK part system
                 brief_part = types.Part.from_bytes(
                     data=uploaded_brief.getvalue(),
                     mime_type=uploaded_brief.type,
@@ -71,6 +70,7 @@ else:
         st.subheader("⚙️ 3. Audit Controls")
         st.markdown("**🔒 Active QC Checklist Matrix:** *Standard corporate matrix pre-loaded successfully.*")
         
+        # FIXED: Changed capital St.expander to lowercase st.expander
         with st.expander("View Active Standard Parameters"):
             st.text(STANDARD_QC_CHECKLIST)
 
@@ -84,7 +84,6 @@ else:
             else:
                 with st.spinner("Processing video and documents with Gemini AI... This can take 1-2 minutes."):
                     try:
-                        # Save uploaded file to local disk temporarily
                         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_video.name)[1]) as tfile:
                             tfile.write(uploaded_video.read())
                             video_path = tfile.name
@@ -92,7 +91,6 @@ else:
                         st.text("Uploading video track to Google AI Studio...")
                         uploaded_file_ref = client.files.upload(file=video_path)
                         
-                        # Wait out processing queue safely
                         while uploaded_file_ref.state.name == "PROCESSING":
                             time.sleep(5)
                             uploaded_file_ref = client.files.get(name=uploaded_file_ref.name)
@@ -129,18 +127,16 @@ else:
                         Return ONLY valid JSON text. Do not wrap in markdown code blocks.
                         """
 
-                        # Compile contents for modern SDK
                         contents = [uploaded_file_ref, prompt]
                         if brief_part:
                             contents.append(brief_part)
 
-                        # Explicit full-path syntax configuration for stable processing
+                        # FIXED: Normalized structure syntax for stable execution
                         response = client.models.generate_content(
-                            model="models/gemini-1.5-flash",
+                            model="gemini-1.5-flash",
                             contents=contents
                         )
                         
-                        # Cleanup storage file loops
                         client.files.delete(name=uploaded_file_ref.name)
                         os.unlink(video_path)
 

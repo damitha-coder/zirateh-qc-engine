@@ -1,13 +1,3 @@
-Here is the complete, top-to-bottom `app.py` file with the final corporate configurations applied.
-
-This version includes two critical updates based on your logs:
-
-1. It updates the model string to **`gemini-1.5-flash-002`** to comply with standard Vertex AI naming conventions and eliminate the `404 NOT_FOUND` error.
-2. It adds permanent **fallback values** inside the code for the `GCP Project ID` and `GCP Vertex Region` inputs. This ensures that even if those fields are accidentally left completely blank in the Streamlit UI sidebar, the application will still fall back to your corporate credentials and initialize without throwing a `TypeError`.
-
-### 📋 Full, Corrected `app.py` Code
-
-```python
 import streamlit as st
 from google import genai
 from google.genai import types

@@ -35,22 +35,30 @@ else:
     with col1:
         st.subheader("📋 1. Project Brief Input")
         
-        # New Hybrid Brief Section
-        brief_type = st.radio("Choose brief format:", ["Upload File (Image/PDF)", "Type/Paste Text"])
+        # Hybrid Brief Section
+        brief_type = st.radio("Choose brief format:", ["Upload Master File (Image/PDF)", "Type/Paste Text"])
         
         brief_data = None
         brief_text_content = ""
+        target_section = ""
         
-        if brief_type == "Upload File (Image/PDF)":
-            uploaded_brief = st.file_uploader("Upload your brief table (PNG, JPG, or PDF)", type=["png", "jpg", "jpeg", "pdf"])
+        if brief_type == "Upload Master File (Image/PDF)":
+            uploaded_brief = st.file_uploader("Upload your master brief document or table image", type=["png", "jpg", "jpeg", "pdf"])
             if uploaded_brief:
-                # Read file bytes for Gemini multimodal processing
                 bytes_data = uploaded_brief.getvalue()
                 brief_data = {
                     "mime_type": uploaded_brief.type,
                     "data": bytes_data
                 }
-                st.success("📁 Project brief document attached successfully!")
+                st.success("📁 Master brief file attached.")
+            
+            # New Input box for filtering large files
+            target_section = st.text_input(
+                "Target Content Number / Item ID:", 
+                placeholder="e.g., Content #3, Project 14, or Number 1"
+            )
+            if target_section:
+                st.info(f"🎯 AI Filter Activated: Gemini will search specifically for section '{target_section}' inside your uploaded document.")
         else:
             brief_text_content = st.text_area("Paste text brief details here:", height=150)
 
@@ -63,15 +71,14 @@ else:
         st.subheader("⚙️ 3. Audit Controls")
         st.markdown("**🔒 Active QC Checklist Matrix:** *Standard corporate matrix pre-loaded successfully.*")
         
-        # Expandable window just in case editors want to read the rules
-        with st.expander("View Active Standard Parameters"):
+        with St.expander("View Active Standard Parameters"):
             st.text(STANDARD_QC_CHECKLIST)
 
         if st.button("🚀 Run AI Compliance Audit", use_container_width=True):
             if not uploaded_video:
                 st.error("Please upload a video file before running the audit.")
-            elif brief_type == "Upload File (Image/PDF)" and not brief_data:
-                st.error("Please upload your brief document file.")
+            elif brief_type == "Upload Master File (Image/PDF)" and not brief_data:
+                st.error("Please upload your master brief file.")
             elif brief_type == "Type/Paste Text" and not brief_text_content.strip():
                 st.error("Please enter text details for your project brief.")
             else:
@@ -85,7 +92,6 @@ else:
                         st.text("Uploading video track to Google AI Studio...")
                         video_file = genai.upload_file(path=video_path)
                         
-                        # Wait for processing
                         while video_file.state.name == "PROCESSING":
                             time.sleep(5)
                             video_file = genai.get_file(video_file.name)
@@ -93,9 +99,11 @@ else:
                         if video_file.state.name == "FAILED":
                             raise Exception("Video processing failed on Google servers.")
 
-                        st.text("Analyzing video framework against project brief and matrix...")
+                        st.text("Analyzing video track against targeted rules...")
                         
-                        # Structure Prompt to accommodate either text brief or image/pdf file brief
+                        # Tailor prompt instructions based on search queries
+                        filter_instruction = f"Locate the specific section marked as '{target_section}' within the attached master file document/image. Extract its layout constraints, text, branding guidelines, or pricing rules, and ignore all other numbers/projects in the file." if target_section else "Extract layout constraints, pricing, and timing details from the document."
+
                         prompt = f"""
                         You are an expert Executive Video Producer and Senior Quality Control Inspector.
                         Analyze this video against the following two control foundations:
@@ -104,7 +112,7 @@ else:
                         {STANDARD_QC_CHECKLIST}
                         
                         FOUNDATION 2: PROJECT BRIEF SPECIFICATIONS:
-                        {brief_text_content if brief_text_content else "Analyze the attached brief document/image file to extract layout constraints, pricing, and timing details."}
+                        {brief_text_content if brief_text_content else filter_instruction}
                         
                         Provide your audit assessment in a clean, strict JSON format with this structure:
                         {{
@@ -121,7 +129,6 @@ else:
                         Return ONLY valid JSON text. Do not wrap in markdown code blocks.
                         """
 
-                        # Handle inputs for multimodal model
                         model_inputs = [video_file, prompt]
                         if brief_data:
                             model_inputs.append(brief_data)
@@ -129,15 +136,12 @@ else:
                         model = genai.GenerativeModel(model_name="gemini-1.5-flash")
                         response = model.generate_content(model_inputs)
                         
-                        # Clean up cloud file trace
                         genai.delete_file(video_file.name)
                         os.unlink(video_path)
 
-                        # Clean JSON output strings safely
                         json_text = response.text.strip().replace("```json", "").replace("```", "")
                         audit_results = json.loads(json_text)
 
-                        # Render Results to UI Panel
                         st.balloons()
                         st.subheader("📊 Audit Assessment Summary")
                         
@@ -149,12 +153,10 @@ else:
                         st.write(audit_results["summary"])
                         st.table(audit_results["checklist_results"])
 
-                        # Generate PDF Download Mechanism using our layout template
                         if os.path.exists("template.html"):
                             with open("template.html", "r") as f:
                                 html_template = f.read()
 
-                            # Generate dynamic rows
                             rows_html = ""
                             for item in audit_results["checklist_results"]:
                                 badge_class = "pass-badge" if item["result"] == "PASS" else "fail-badge"

@@ -27,6 +27,8 @@ st.write("Upload your video asset and project brief to run an automated quality 
 if not api_key:
     st.info("Please enter your Gemini API Key in the left sidebar to unlock the application.", icon="🔑")
 else:
+    # Key-flexible configuration fix
+    os.environ["GEMINI_API_KEY"] = api_key
     genai.configure(api_key=api_key)
     
     # Create two columns for clean layout
@@ -35,7 +37,6 @@ else:
     with col1:
         st.subheader("📋 1. Project Brief Input")
         
-        # Hybrid Brief Section
         brief_type = st.radio("Choose brief format:", ["Upload Master File (Image/PDF)", "Type/Paste Text"])
         
         brief_data = None
@@ -52,7 +53,6 @@ else:
                 }
                 st.success("📁 Master brief file attached.")
             
-            # Input box for filtering large files
             target_section = st.text_input(
                 "Target Content Number / Item ID:", 
                 placeholder="e.g., Content #3, Project 14, or Number 1"
@@ -84,7 +84,6 @@ else:
             else:
                 with st.spinner("Processing video and documents with Gemini AI... This can take 1-2 minutes."):
                     try:
-                        # Process video file securely via tempfile
                         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_video.name)[1]) as tfile:
                             tfile.write(uploaded_video.read())
                             video_path = tfile.name
@@ -101,7 +100,6 @@ else:
 
                         st.text("Analyzing video track against targeted rules...")
                         
-                        # Tailor prompt instructions based on search queries
                         filter_instruction = f"Locate the specific section marked as '{target_section}' within the attached master file document/image. Extract its layout constraints, text, branding guidelines, or pricing rules, and ignore all other numbers/projects in the file." if target_section else "Extract layout constraints, pricing, and timing details from the document."
 
                         prompt = f"""

@@ -136,9 +136,9 @@ else:
                         if brief_part:
                             contents.append(brief_part)
 
-                        # FIXED: Swapped out developer string format for standard corporate model ID format
+                        # Clean Vertex execution call matching the modern SDK structure
                         response = client.models.generate_content(
-                            model="gemini-1.5-flash-002",
+                            model="gemini-1.5-flash",
                             contents=contents
                         )
 
@@ -187,5 +187,3 @@ else:
 
                     except Exception as e:
                         st.error(f"An optimization error occurred: {str(e)}")
-
-```

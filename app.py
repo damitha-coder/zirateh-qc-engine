@@ -1,4 +1,3 @@
-import streamlit as sns
 import streamlit as st
 import google.generativeai as genai
 import json
@@ -145,7 +144,6 @@ else:
                         if audit_results["status"] == "PASSED":
                             st.success(f"STATUS: {audit_results['status']}")
                         else:
-                            st.sidebar.error(f"STATUS: {audit_results['status']}")
                             st.error(f"STATUS: {audit_results['status']}")
 
                         st.write(audit_results["summary"])

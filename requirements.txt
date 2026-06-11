@@ -1,4 +1,4 @@
 streamlit
+google-genai
 weasyprint
 jinja2
-google-genai

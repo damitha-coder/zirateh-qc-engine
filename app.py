@@ -1,3 +1,13 @@
+Here is the complete, top-to-bottom `app.py` file with the final corporate configurations applied.
+
+This version includes two critical updates based on your logs:
+
+1. It updates the model string to **`gemini-1.5-flash-002`** to comply with standard Vertex AI naming conventions and eliminate the `404 NOT_FOUND` error.
+2. It adds permanent **fallback values** inside the code for the `GCP Project ID` and `GCP Vertex Region` inputs. This ensures that even if those fields are accidentally left completely blank in the Streamlit UI sidebar, the application will still fall back to your corporate credentials and initialize without throwing a `TypeError`.
+
+### 📋 Full, Corrected `app.py` Code
+
+```python
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -20,8 +30,14 @@ st.set_page_config(page_title="Zirateh QC Engine", layout="wide")
 # Sidebar setup for corporate configuration
 st.sidebar.title("🔐 Corporate Configuration")
 api_key = st.sidebar.text_input("Enter Corporate API Key (AQ...)", type="password")
-project_id = st.sidebar.text_input("GCP Project ID", value="386763638351")
-location = st.sidebar.text_input("GCP Vertex Region", value="us-central1")
+
+# Fixed default values implemented directly in input mapping to protect against blank sidebar errors
+project_id_input = st.sidebar.text_input("GCP Project ID", value="386763638351")
+location_input = st.sidebar.text_input("GCP Vertex Region", value="us-central1")
+
+# Hardcoded fallbacks ensure client never crashes if user accidentally deletes sidebar values
+project_id = project_id_input if project_id_input.strip() else "386763638351"
+location = location_input if location_input.strip() else "us-central1"
 
 st.title("🎬 Zirateh AI Video QC Engine")
 st.write("Upload your video asset and project brief to run an automated corporate compliance audit.")
@@ -92,7 +108,6 @@ else:
                     try:
                         st.text("Streaming video track payload to Vertex compliance matrix pipeline...")
                         
-                        # VERIFIED FIX: Ingest video bytes seamlessly without the legacy, broken client.files framework
                         video_part = types.Part.from_bytes(
                             data=uploaded_video.getvalue(),
                             mime_type=uploaded_video.type,
@@ -131,9 +146,9 @@ else:
                         if brief_part:
                             contents.append(brief_part)
 
-                        # Clean enterprise content generation endpoint execution
+                        # FIXED: Swapped out developer string format for standard corporate model ID format
                         response = client.models.generate_content(
-                            model="gemini-1.5-flash",
+                            model="gemini-1.5-flash-002",
                             contents=contents
                         )
 
@@ -182,3 +197,5 @@ else:
 
                     except Exception as e:
                         st.error(f"An optimization error occurred: {str(e)}")
+
+```

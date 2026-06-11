@@ -52,7 +52,7 @@ else:
                 }
                 st.success("📁 Master brief file attached.")
             
-            # New Input box for filtering large files
+            # Input box for filtering large files
             target_section = st.text_input(
                 "Target Content Number / Item ID:", 
                 placeholder="e.g., Content #3, Project 14, or Number 1"
@@ -71,7 +71,7 @@ else:
         st.subheader("⚙️ 3. Audit Controls")
         st.markdown("**🔒 Active QC Checklist Matrix:** *Standard corporate matrix pre-loaded successfully.*")
         
-        with St.expander("View Active Standard Parameters"):
+        with st.expander("View Active Standard Parameters"):
             st.text(STANDARD_QC_CHECKLIST)
 
         if st.button("🚀 Run AI Compliance Audit", use_container_width=True):

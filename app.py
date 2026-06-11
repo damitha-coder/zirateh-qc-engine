@@ -5,7 +5,6 @@ import json
 import os
 import time
 from weasyprint import HTML
-import tempfile
 
 # 1. PERMANENT QC CHECKLIST MATRIX
 STANDARD_QC_CHECKLIST = """
@@ -30,7 +29,7 @@ st.write("Upload your video asset and project brief to run an automated corporat
 if not api_key:
     st.info("Please enter your Vertex API Key in the left sidebar to unlock the application.", icon="🔑")
 else:
-    # Set the environment variable required for the new corporate SDK routing backend
+    # Set the environment variable required for the corporate SDK routing backend
     os.environ["GEMINI_API_KEY"] = api_key
     
     # Initialize the modern corporate client routing to Vertex infrastructure natively
@@ -91,21 +90,13 @@ else:
             else:
                 with st.spinner("Processing video and documents with Corporate Vertex AI... This can take 1-2 minutes."):
                     try:
-                        # Save uploaded file to local disk temporarily
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_video.name)[1]) as tfile:
-                            tfile.write(uploaded_video.read())
-                            video_path = tfile.name
-
-                        st.text("Uploading video track to corporate Vertex buckets...")
-                        uploaded_file_ref = client.files.upload(file=video_path)
+                        st.text("Streaming video track payload to Vertex compliance matrix pipeline...")
                         
-                        # Wait out processing queue safely
-                        while uploaded_file_ref.state.name == "PROCESSING":
-                            time.sleep(5)
-                            uploaded_file_ref = client.files.get(name=uploaded_file_ref.name)
-
-                        if uploaded_file_ref.state.name == "FAILED":
-                            raise Exception("Video processing failed on corporate servers.")
+                        # FIX: Ingest the video directly into memory bytes part layout for unified enterprise SDK routing
+                        video_part = types.Part.from_bytes(
+                            data=uploaded_video.getvalue(),
+                            mime_type=uploaded_video.type,
+                        )
 
                         st.text("Analyzing video track against targeted rules...")
                         
@@ -129,4 +120,65 @@ else:
                                 {{"parameter": "Technical QC", "result": "PASS/FAIL", "notes": "Specific detail..."}},
                                 {{"parameter": "Structure", "result": "PASS/FAIL", "notes": "Specific detail..."}},
                                 {{"parameter": "Copy & Text", "result": "PASS/FAIL", "notes": "Specific detail..."}},
-                                {{"parameter": "Compliance", "result": "PASS/FAIL", "notes": "
+                                {{"parameter": "Compliance", "result": "PASS/FAIL", "notes": "Specific detail..."}},
+                                {{"parameter": "Pacing", "result": "PASS/FAIL", "notes": "Specific detail..."}}
+                            ]
+                        }}
+                        Return ONLY valid JSON text. Do not wrap in markdown code blocks.
+                        """
+
+                        contents = [video_part, prompt]
+                        if brief_part:
+                            contents.append(brief_part)
+
+                        # Run execution through the main corporate deployment pathway
+                        response = client.models.generate_content(
+                            model="gemini-1.5-flash",
+                            contents=contents
+                        )
+
+                        json_text = response.text.strip().replace("```json", "").replace("```", "")
+                        audit_results = json.loads(json_text)
+
+                        st.balloons()
+                        st.subheader("📊 Audit Assessment Summary")
+                        
+                        if audit_results["status"] == "PASSED":
+                            st.success(f"STATUS: {audit_results['status']}")
+                        else:
+                            st.error(f"STATUS: {audit_results['status']}")
+
+                        st.write(audit_results["summary"])
+                        st.table(audit_results["checklist_results"])
+
+                        if os.path.exists("template.html"):
+                            with open("template.html", "r") as f:
+                                html_template = f.read()
+
+                            rows_html = ""
+                            for item in audit_results["checklist_results"]:
+                                badge_class = "pass-badge" if item["result"] == "PASS" else "fail-badge"
+                                rows_html += f"""
+                                <tr>
+                                    <td><strong>{item['parameter']}</strong></td>
+                                    <td><span class="badge {badge_class}">{item['result']}</span></td>
+                                    <td>{item['notes']}</td>
+                                </tr>
+                                """
+
+                            html_content = html_template.replace("{{STATUS}}", audit_results["status"])\
+                                                         .replace("{{SUMMARY}}", audit_results["summary"])\
+                                                         .replace("{{ROWS}}", rows_html)
+
+                            pdf_bytes = HTML(string=html_content).write_pdf()
+                            
+                            st.download_button(
+                                label="📥 Download Certified PDF QC Report",
+                                data=pdf_bytes,
+                                file_name="Zirateh_QC_Report.pdf",
+                                mime="application/pdf",
+                                use_container_width=True
+                            )
+
+                    except Exception as e:
+                        st.error(f"An optimization error occurred: {str(e)}")

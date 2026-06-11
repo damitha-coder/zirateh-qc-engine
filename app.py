@@ -134,9 +134,9 @@ else:
                         if brief_part:
                             contents.append(brief_part)
 
-                        # Updated targeting line for 002 stable execution production route
+                        # Adjusted name specifically tailored for the new genai client endpoint syntax
                         response = client.models.generate_content(
-                            model="gemini-1.5-flash-002",
+                            model="gemini-1.5-flash",
                             contents=contents
                         )
                         

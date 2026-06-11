@@ -134,8 +134,9 @@ else:
                         if brief_part:
                             contents.append(brief_part)
 
+                        # Updated targeting line for 002 stable execution production route
                         response = client.models.generate_content(
-                            model="gemini-1.5-flash",
+                            model="gemini-1.5-flash-002",
                             contents=contents
                         )
                         

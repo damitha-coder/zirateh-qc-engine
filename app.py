@@ -1,146 +1,186 @@
+import streamlit as sns
 import streamlit as st
-import os
+import google.generativeai as genai
 import json
+import os
 import time
-from datetime import datetime
-from google import genai
-from google.genai import types
 from weasyprint import HTML
-import jinja2
+import tempfile
 
-# Page layout configurations
-st.set_page_config(page_title="Zirateh Video QC Tool", layout="wide", page_icon="🎬")
+# 1. PERMANENT QC CHECKLIST MATRIX
+STANDARD_QC_CHECKLIST = """
+1. Technical QC - Audio Balance: Verify dialogue track takes priority cleanly over background music audio. Audio levels must remain balanced without distortion or clipping.
+2. Structure - Hook Mechanics: Ensure an explicit visual pattern interrupt, text animation, or thematic hook triggers within the first 3 to 5 seconds of the video timeline to capture viewer retention.
+3. Copy & Text - Typography Check: Perform frame-by-frame text inspection to identify any spelling errors, typos, missing punctuation, or awkward line breaks across burned-in subtitles and lower-third graphics.
+4. Compliance - Mandatory Visuals: Verify that required branding elements, project pricing models, or official legal disclaimers appear visibly at designated timestamp brackets outlined in the project brief.
+5. Pacing - Flow Dynamics: Audit cuts, transition pacing, and asset placements to make sure there are no dead frames, abrupt clip cuts, or lagging structural pauses.
+"""
 
-st.title("🎬 Zirateh Video Compliance & Audit Engine")
-st.markdown("Upload your structural media files below to perform frame-by-frame compliance verification checks.")
+st.set_page_config(page_title="Zirateh QC Engine", layout="wide")
 
-# Sidebar Configuration for API Authentication
-st.sidebar.header("🔧 API Configuration")
-api_key = st.sidebar.text_input("Enter Gemini API Key", type="password", value=os.environ.get("GEMINI_API_KEY", ""))
+# Sidebar setup
+st.sidebar.title("🔐 Configuration")
+api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
+
+st.title("🎬 Zirateh AI Video QC Engine")
+st.write("Upload your video asset and project brief to run an automated quality compliance audit.")
 
 if not api_key:
-    st.warning("⚠️ Please provide a valid Gemini API Key in the sidebar or setting environment variables to activate backend tasks.")
-    st.stop()
-
-# Initialize Client
-client = genai.Client(api_key=api_key)
-
-# Main Form Components
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("📋 Context & Rulesets Ingestion")
-    brief_input = st.text_area("Paste Content Brief Rules / Page Specifics:", height=150, 
-                               placeholder="e.g., Must show prices at the beginning. 5-star ranking graphic layout at the end.")
-    checklist_input = st.text_area("Paste QC Checklist Parameter Matrix:", height=150,
-                                   placeholder="e.g., Pattern interrupt every 3-5 seconds. Audio levels balanced. Check for text errors.")
-
-with col2:
-    st.subheader("📤 Media Asset Upload")
-    uploaded_video = st.file_uploader("Choose your edited video file (.mp4, .mov)", type=["mp4", "mov"])
-
-if st.button("🚀 Run Video Compliance Audit", type="primary"):
-    if not brief_input or not checklist_input or not uploaded_video:
-        st.error("Please fill in all textual guidelines fields and upload a target video asset file before initializing.")
-    else:
-        # Save uploaded file temporarily to execution paths
-        temp_video_path = f"temp_{uploaded_video.name}"
-        with open(temp_video_path, "wb") as f:
-            f.write(uploaded_video.getbuffer())
-
-        try:
-            with st.spinner("Step 1/3: Exporting video file to Cloud processing space safely..."):
-                video_asset = client.files.upload(file=temp_video_path)
-                
-                # Check frame calculation staging state loops
-                while video_asset.state.name == "PROCESSING":
-                    time.sleep(8)
-                    video_asset = client.files.get(name=video_asset.name)
-                
-                if video_asset.state.name == "FAILED":
-                    st.error("Cloud processing pipeline failed to parse video tracks.")
-                    st.stop()
-
-            with st.spinner("Step 2/3: Analyzing frames and cross-referencing timeline structures against rules..."):
-                analysis_prompt = f"""
-                You are a strict Post-Production Executive and Quality Control Director for short-form video content.
-                Analyze the uploaded video file track sequences against the strict structural rules provided.
-                
-                Content Strategy Brief Rules:
-                {brief_input}
-                
-                Technical QC Checklist Parameters:
-                {checklist_input}
-                
-                You must return your complete response strictly as a structured JSON array matching this exact format:
-                [
-                  {{
-                    "section": "Technical QC",
-                    "subsection": "Audio Balance",
-                    "status": "Pass",
-                    "detail": "Dialogue is prioritized cleanly over background track."
-                  }},
-                  {{
-                    "section": "Copy & Text",
-                    "subsection": "Spelling Errors",
-                    "status": "Fail",
-                    "detail": "Typo detected at 00:16: 'Onx' instead of 'Onyx'."
-                  }}
-                ]
-                Do not wrap the JSON output inside any markdown strings or conversational text headers.
-                """
-
-                response = client.models.generate_content(
-                    model='gemini-2.5-pro', # Pro framework handles advanced reasoning & multi-minute video contexts smoothly
-                    contents=[video_asset, analysis_prompt],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        temperature=0.1 # Forces factual alignment without random assumptions
-                    ),
-                )
-                
-                # Turn output into structured object array
-                json_data = json.loads(response.text)
-
-            with st.spinner("Step 3/3: Rendering PDF report via layout templates..."):
-                # Render Jinja Template mapping matching dynamic variables
-                template_loader = jinja2.FileSystemLoader(searchpath="./")
-                template_env = jinja2.Environment(loader=template_loader)
-                template = template_env.get_template("template.html")
-                
-                html_output = template.render(
-                    date=datetime.now().strftime("%B %d, %Y"),
-                    filename=uploaded_video.name,
-                    matrix=json_data
-                )
-                
-                pdf_filename = "zirateh_output_audit.pdf"
-                HTML(string=html_output).write_pdf(pdf_filename)
-
-            st.success("✅ Complete System Check Finalized!")
-
-            # Display on-screen preview table matrix
-            st.subheader("📊 Internal Audit Results Preview")
-            st.table(json_data)
-
-            # Download Option button
-            with open(pdf_filename, "rb") as pdf_file:
-                st.download_button(
-                    label="📥 Download Structured PDF Audit Sheet",
-                    data=pdf_file,
-                    file_name=f"Audit_Report_{uploaded_video.name}.pdf",
-                    mime="application/pdf"
-                )
-
-            # Clean workspace records
-            os.remove(pdf_filename)
-
-        except Exception as err:
-            st.error(f"Execution Error occurred inside engine workspace: {str(err)}")
+    st.info("Please enter your Gemini API Key in the left sidebar to unlock the application.", icon="🔑")
+else:
+    genai.configure(api_key=api_key)
+    
+    # Create two columns for clean layout
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.subheader("📋 1. Project Brief Input")
         
-        finally:
-            # Always ensure local media dumps and cloud session keys are cleared to protect operational security
-            if 'video_asset' in locals():
-                client.files.delete(name=video_asset.name)
-            if os.path.exists(temp_video_path):
-                os.remove(temp_video_path)
+        # New Hybrid Brief Section
+        brief_type = st.radio("Choose brief format:", ["Upload File (Image/PDF)", "Type/Paste Text"])
+        
+        brief_data = None
+        brief_text_content = ""
+        
+        if brief_type == "Upload File (Image/PDF)":
+            uploaded_brief = st.file_uploader("Upload your brief table (PNG, JPG, or PDF)", type=["png", "jpg", "jpeg", "pdf"])
+            if uploaded_brief:
+                # Read file bytes for Gemini multimodal processing
+                bytes_data = uploaded_brief.getvalue()
+                brief_data = {
+                    "mime_type": uploaded_brief.type,
+                    "data": bytes_data
+                }
+                st.success("📁 Project brief document attached successfully!")
+        else:
+            brief_text_content = st.text_area("Paste text brief details here:", height=150)
+
+        st.subheader("🎥 2. Video Asset")
+        uploaded_video = st.file_uploader("Upload the video file to audit (.mp4, .mov)", type=["mp4", "mov", "avi", "mkv"])
+        if uploaded_video:
+            st.video(uploaded_video)
+
+    with col2:
+        st.subheader("⚙️ 3. Audit Controls")
+        st.markdown("**🔒 Active QC Checklist Matrix:** *Standard corporate matrix pre-loaded successfully.*")
+        
+        # Expandable window just in case editors want to read the rules
+        with st.expander("View Active Standard Parameters"):
+            st.text(STANDARD_QC_CHECKLIST)
+
+        if st.button("🚀 Run AI Compliance Audit", use_container_width=True):
+            if not uploaded_video:
+                st.error("Please upload a video file before running the audit.")
+            elif brief_type == "Upload File (Image/PDF)" and not brief_data:
+                st.error("Please upload your brief document file.")
+            elif brief_type == "Type/Paste Text" and not brief_text_content.strip():
+                st.error("Please enter text details for your project brief.")
+            else:
+                with st.spinner("Processing video and documents with Gemini AI... This can take 1-2 minutes."):
+                    try:
+                        # Process video file securely via tempfile
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_video.name)[1]) as tfile:
+                            tfile.write(uploaded_video.read())
+                            video_path = tfile.name
+
+                        st.text("Uploading video track to Google AI Studio...")
+                        video_file = genai.upload_file(path=video_path)
+                        
+                        # Wait for processing
+                        while video_file.state.name == "PROCESSING":
+                            time.sleep(5)
+                            video_file = genai.get_file(video_file.name)
+
+                        if video_file.state.name == "FAILED":
+                            raise Exception("Video processing failed on Google servers.")
+
+                        st.text("Analyzing video framework against project brief and matrix...")
+                        
+                        # Structure Prompt to accommodate either text brief or image/pdf file brief
+                        prompt = f"""
+                        You are an expert Executive Video Producer and Senior Quality Control Inspector.
+                        Analyze this video against the following two control foundations:
+                        
+                        FOUNDATION 1: FIXED QC MATRIX PARAMETERS:
+                        {STANDARD_QC_CHECKLIST}
+                        
+                        FOUNDATION 2: PROJECT BRIEF SPECIFICATIONS:
+                        {brief_text_content if brief_text_content else "Analyze the attached brief document/image file to extract layout constraints, pricing, and timing details."}
+                        
+                        Provide your audit assessment in a clean, strict JSON format with this structure:
+                        {{
+                            "status": "PASSED" or "REVISIONS REQUIRED",
+                            "summary": "Overall execution overview paragraph...",
+                            "checklist_results": [
+                                {{"parameter": "Technical QC", "result": "PASS/FAIL", "notes": "Specific detail..."}},
+                                {{"parameter": "Structure", "result": "PASS/FAIL", "notes": "Specific detail..."}},
+                                {{"parameter": "Copy & Text", "result": "PASS/FAIL", "notes": "Specific detail..."}},
+                                {{"parameter": "Compliance", "result": "PASS/FAIL", "notes": "Specific detail..."}},
+                                {{"parameter": "Pacing", "result": "PASS/FAIL", "notes": "Specific detail..."}}
+                            ]
+                        }}
+                        Return ONLY valid JSON text. Do not wrap in markdown code blocks.
+                        """
+
+                        # Handle inputs for multimodal model
+                        model_inputs = [video_file, prompt]
+                        if brief_data:
+                            model_inputs.append(brief_data)
+
+                        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+                        response = model.generate_content(model_inputs)
+                        
+                        # Clean up cloud file trace
+                        genai.delete_file(video_file.name)
+                        os.unlink(video_path)
+
+                        # Clean JSON output strings safely
+                        json_text = response.text.strip().replace("```json", "").replace("```", "")
+                        audit_results = json.loads(json_text)
+
+                        # Render Results to UI Panel
+                        st.balloons()
+                        st.subheader("📊 Audit Assessment Summary")
+                        
+                        if audit_results["status"] == "PASSED":
+                            st.success(f"STATUS: {audit_results['status']}")
+                        else:
+                            st.sidebar.error(f"STATUS: {audit_results['status']}")
+                            st.error(f"STATUS: {audit_results['status']}")
+
+                        st.write(audit_results["summary"])
+                        st.table(audit_results["checklist_results"])
+
+                        # Generate PDF Download Mechanism using our layout template
+                        if os.path.exists("template.html"):
+                            with open("template.html", "r") as f:
+                                html_template = f.read()
+
+                            # Generate dynamic rows
+                            rows_html = ""
+                            for item in audit_results["checklist_results"]:
+                                badge_class = "pass-badge" if item["result"] == "PASS" else "fail-badge"
+                                rows_html += f"""
+                                <tr>
+                                    <td><strong>{item['parameter']}</strong></td>
+                                    <td><span class="badge {badge_class}">{item['result']}</span></td>
+                                    <td>{item['notes']}</td>
+                                </tr>
+                                """
+
+                            html_content = html_template.replace("{{STATUS}}", audit_results["status"])\
+                                                         .replace("{{SUMMARY}}", audit_results["summary"])\
+                                                         .replace("{{ROWS}}", rows_html)
+
+                            pdf_bytes = HTML(string=html_content).write_pdf()
+                            
+                            st.download_button(
+                                label="📥 Download Certified PDF QC Report",
+                                data=pdf_bytes,
+                                file_name="Zirateh_QC_Report.pdf",
+                                mime="application/pdf",
+                                use_container_width=True
+                            )
+
+                    except Exception as e:
+                        st.error(f"An optimization error occurred: {str(e)}")
